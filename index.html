@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tierforge — Tier List Builder</title>
+<meta name="description" content="Build tier lists in your browser. Custom tiers, custom colors, images, text items, PNG export. Everything stays in local storage.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='9' rx='2' fill='%23ff7f7f'/%3E%3Crect y='11.5' width='24' height='9' rx='2' fill='%23ffdf7f'/%3E%3Crect y='23' width='16' height='9' rx='2' fill='%237fff7f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1014; --panel:#17181e; --panel2:#1e2027; --line:#2a2c35; --text:#e9e9ee; --muted:#8b8d99;
+  --accent:#ffbf7f; --size:88px; --label:112px; --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:#262832;border-color:#3a3d48}
+button.primary{background:var(--accent);color:#1a1205;border-color:transparent;font-weight:600}
+button.primary:hover{filter:brightness(1.07)}
+button.danger{color:#ff8a8a}
+button.icon{padding:6px 8px;line-height:1;display:inline-grid;place-items:center}
+button svg{width:16px;height:16px;display:block}
+select,input[type=text],input[type=url],textarea{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--accent)}
+
+header{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 18px;background:rgba(15,16,20,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{font:700 19px 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin-right:10px;display:flex;align-items:center;gap:8px}
+.brand i{display:grid;gap:2px}
+.brand i b{display:block;height:4px;border-radius:2px}
+.brand span{color:var(--accent)}
+.grow{flex:1}
+.size{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.size input{accent-color:var(--accent);width:110px}
+#listSelect{max-width:220px}
+
+main{max-width:1200px;margin:0 auto;padding:22px 18px 80px}
+#title{font:700 30px 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin:4px 0 16px;outline:none;border-radius:6px;padding:2px 6px;margin-left:-6px}
+#title:hover{background:var(--panel)}
+#title:focus{background:var(--panel);box-shadow:0 0 0 1px var(--accent)}
+
+#board{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+.tier{display:flex;min-height:var(--size);border-bottom:1px solid var(--line)}
+.tier:last-child{border-bottom:0}
+.label{width:var(--label);flex:none;display:grid;place-items:center;padding:6px;text-align:center;font:700 18px 'Space Grotesk',sans-serif;word-break:break-word;cursor:text}
+.label-text{outline:none;min-width:1ch;padding:2px 4px;border-radius:4px}
+.label-text:focus{background:rgba(0,0,0,.12)}
+.items{flex:1;display:flex;flex-wrap:wrap;align-content:flex-start;min-height:var(--size);background:var(--panel)}
+.ctrl{flex:none;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:6px;background:#121318;border-left:1px solid var(--line)}
+.ctrl button{padding:5px;background:transparent;border-color:transparent;color:var(--muted)}
+.ctrl button:hover{color:var(--text);background:var(--panel2)}
+.board-actions{display:flex;gap:8px;margin:12px 0 28px;flex-wrap:wrap}
+
+.item{width:var(--size);height:var(--size);flex:none;position:relative;cursor:grab;user-select:none;touch-action:none;overflow:hidden;background:#000}
+.item img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.item.text{display:grid;place-items:center;padding:6px;text-align:center;font-weight:600;font-size:calc(var(--size) * .15);line-height:1.15;word-break:break-word}
+.item .cap{position:absolute;left:0;right:0;bottom:0;padding:2px 4px;font-size:11px;font-weight:600;background:rgba(0,0,0,.66);color:#fff;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item:hover{outline:2px solid rgba(255,255,255,.55);outline-offset:-2px;z-index:1}
+.item.placeholder{opacity:.25;outline:2px dashed #fff;outline-offset:-3px}
+.ghost{position:fixed;z-index:100;pointer-events:none;box-shadow:0 14px 30px rgba(0,0,0,.55);transform:rotate(-3deg) scale(1.06);opacity:.95;outline:none!important}
+body.dragging,body.dragging *{cursor:grabbing!important}
+
+.pool-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.pool-head h2{font:700 17px 'Space Grotesk',sans-serif;margin:0 6px 0 0}
+.count{color:var(--muted);font-size:12px;font-weight:500;margin-left:4px}
+#pool{min-height:calc(var(--size) + 2px);display:flex;flex-wrap:wrap;align-content:flex-start;border:1px dashed #3a3d48;border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+#pool:empty::before{content:"Upload, paste (Ctrl/⌘+V) or drop images here — or add text items.";color:var(--muted);padding:22px;margin:auto}
+#trash{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed #5a3a3a;border-radius:8px;color:#ff8a8a;font-size:13px;transition:all .15s}
+#trash svg{width:15px;height:15px}
+body.dragging #trash{background:rgba(255,90,90,.08)}
+#trash.hot{background:rgba(255,90,90,.25);border-style:solid;transform:scale(1.05)}
+.hint{color:var(--muted);font-size:12px;margin-top:10px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+
+body.filedrop::after{content:"Drop images to add them";position:fixed;inset:12px;z-index:200;display:grid;place-items:center;border:3px dashed var(--accent);border-radius:16px;background:rgba(15,16,20,.85);font:700 26px 'Space Grotesk',sans-serif;color:var(--accent)}
+
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(0,0,0,.6)}
+dialog::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+.dlg{padding:18px;display:grid;gap:14px}
+.dlg h3{margin:0;font:700 18px 'Space Grotesk',sans-serif}
+.dlg label{display:grid;gap:6px;font-size:12px;color:var(--muted)}
+.dlg input[type=text],.dlg input[type=url],.dlg textarea{width:100%;color:var(--text)}
+.dlg textarea{resize:vertical;min-height:70px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.end{justify-content:flex-end}
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:28px;height:28px;border-radius:7px;border:2px solid transparent;padding:0;cursor:pointer}
+.sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--bg) inset}
+input[type=color]{width:40px;height:30px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:2px;cursor:pointer}
+.preview{width:96px;height:96px;border-radius:8px;overflow:hidden;flex:none}
+.preview .item{width:96px;height:96px;cursor:default;font-size:15px}
+.sep{height:1px;background:var(--line)}
+
+#toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);background:#2a2c35;border:1px solid #3a3d48;padding:9px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:all .2s;z-index:300;max-width:90vw}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.err{border-color:#7a3a3a;background:#3a2025}
+
+@media (max-width:640px){
+  :root{--label:72px}
+  #title{font-size:24px}
+  .label{font-size:15px}
+  header{padding:8px 12px}
+  main{padding:16px 10px 60px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><i><b style="width:16px;background:#ff7f7f"></b><b style="width:12px;background:#ffdf7f"></b><b style="width:8px;background:#7fff7f"></b></i>Tier<span>forge</span></div>
+  <select id="listSelect" title="Switch tier list"></select>
+  <button id="newList" title="New tier list">New</button>
+  <button id="dupList" title="Duplicate this list">Duplicate</button>
+  <button id="delList" class="danger" title="Delete this list">Delete</button>
+  <div class="grow"></div>
+  <label class="size">Size <input id="sizeRange" type="range" min="56" max="150" step="2"></label>
+  <button id="importJson" title="Import a list from JSON">Import</button>
+  <button id="exportJson" title="Download this list as JSON">Export JSON</button>
+  <button id="exportPng" class="primary" title="Download as PNG">Save PNG</button>
+  <input id="jsonFile" type="file" accept="application/json,.json" hidden>
+</header>
+
+<main>
+  <h1 id="title" contenteditable="true" spellcheck="false"></h1>
+  <div id="board"></div>
+  <div class="board-actions">
+    <button id="addTier">+ Add tier</button>
+    <button id="resetItems">Move all items back to pool</button>
+  </div>
+
+  <section>
+    <div class="pool-head">
+      <h2>Unranked<span class="count" id="poolCount"></span></h2>
+      <button id="uploadBtn" class="primary">Upload images</button>
+      <button id="urlBtn">Add from URL</button>
+      <button id="textBtn">Add text item</button>
+      <div class="grow"></div>
+      <div id="trash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Drag here to delete</div>
+    </div>
+    <div id="pool" class="drop"></div>
+    <div class="hint"><span>Drag to rank · click an item to edit · click a tier label to rename · ⚙ for color & options</span><span id="storage"></span></div>
+    <input id="imgFile" type="file" accept="image/*" multiple hidden>
+  </section>
+</main>
+
+<dialog id="tierDlg"><form method="dialog" class="dlg">
+  <h3>Tier settings</h3>
+  <label>Label <input type="text" id="tLabel" maxlength="60"></label>
+  <label>Color
+    <div class="swatches" id="tSwatches"></div>
+  </label>
+  <div class="row"><span style="color:var(--muted);font-size:12px">Custom</span><input type="color" id="tColor"><input type="text" id="tHex" maxlength="7" style="width:96px" spellcheck="false"></div>
+  <div class="sep"></div>
+  <div class="row">
+    <button type="button" id="tAbove">Add tier above</button>
+    <button type="button" id="tBelow">Add tier below</button>
+    <button type="button" id="tClear">Clear row</button>
+    <button type="button" id="tDelete" class="danger">Delete tier</button>
+  </div>
+  <div class="row end"><button value="close" class="primary">Done</button></div>
+</form></dialog>
+
+<dialog id="itemDlg"><form method="dialog" class="dlg">
+  <h3>Edit item</h3>
+  <div class="row" style="align-items:flex-start">
+    <div class="preview" id="iPreview"></div>
+    <div style="flex:1;display:grid;gap:10px;min-width:180px">
+      <label id="iTextWrap">Text <textarea id="iText" maxlength="120"></textarea></label>
+      <label id="iCapWrap">Caption (optional) <input type="text" id="iCap" maxlength="40"></label>
+      <label id="iBgWrap">Background <div class="swatches" id="iSwatches"></div></label>
+    </div>
+  </div>
+  <div class="row">
+    <button type="button" id="iPool">Send to pool</button>
+    <button type="button" id="iDup">Duplicate</button>
+    <button type="button" id="iDelete" class="danger">Delete</button>
+    <div class="grow"></div>
+    <button value="close" class="primary">Done</button>
+  </div>
+</form></dialog>
+
+<dialog id="askDlg"><form method="dialog" class="dlg" id="askForm">
+  <h3 id="askTitle"></h3>
+  <input type="text" id="askInput" autocomplete="off">
+  <div class="row end"><button value="cancel" type="button" id="askCancel">Cancel</button><button value="ok" class="primary">OK</button></div>
+</form></dialog>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const LS_KEY = 'tierforge:v1';
+const PALETTE = ['#ff7f7f','#ffbf7f','#ffdf7f','#ffff7f','#bfff7f','#7fff7f','#7fffff','#7fbfff','#7f7fff','#ff7fff','#bf7fbf','#c9a27e','#cfcfcf','#3b3b3b'];
+const TEXT_BG = ['#2b2d38','#5b3df5','#e0457b','#f59e0b','#10b981','#0ea5e9','#ef4444','#f4f4f5'];
+const $ = s => document.querySelector(s);
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function ink(hex) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#16171c' : '#ffffff';
+}
+const validHex = v => /^#[0-9a-f]{6}$/i.test(v);
+
+function newList(title = 'My Tier List', seed = false) {
+  const tiers = [['S','#ff7f7f'],['A','#ffbf7f'],['B','#ffdf7f'],['C','#ffff7f'],['D','#bfff7f']]
+    .map(([label, color]) => ({ id: uid(), label, color, items: [] }));
+  const list = { id: uid(), title, tiers, pool: [], items: {} };
+  if (seed) {
+    ['Pho','Ramen','Sushi','Tacos','Pizza','Banh Mi','Laksa','Dim Sum','Burger','Salad']
+      .forEach((t, i) => { const id = uid(); list.items[id] = { type: 'text', text: t, bg: TEXT_BG[i % TEXT_BG.length] }; list.pool.push(id); });
+    list.title = 'Best Foods';
+  }
+  return list;
+}
+
+// ---------- state ----------
+let db;
+function load() {
+  try { db = JSON.parse(localStorage.getItem(LS_KEY)); } catch { db = null; }
+  if (!db || !db.lists || !Object.keys(db.lists).length) {
+    const l = newList('My Tier List', true);
+    db = { lists: { [l.id]: l }, current: l.id, size: 88 };
+  }
+  if (!db.lists[db.current]) db.current = Object.keys(db.lists)[0];
+  if (!db.size) db.size = 88;
+}
+const cur = () => db.lists[db.current];
+
+let saveTimer;
+function save(now = false) {
+  clearTimeout(saveTimer);
+  const go = () => {
+    const str = JSON.stringify(db);
+    try { localStorage.setItem(LS_KEY, str); }
+    catch (e) { toast('Storage is full — delete some images or export your list as JSON.', true); }
+    $('#storage').textContent = `Saved locally · ${(str.length / 1048576).toFixed(2)} MB of ~5 MB`;
+  };
+  now ? go() : (saveTimer = setTimeout(go, 150));
+}
+
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 2800);
+}
+
+// ---------- render ----------
+function itemHTML(id, item) {
+  if (!item) return '';
+  if (item.type === 'text')
+    return `<div class="item text" data-id="${id}" style="background:${item.bg};color:${ink(item.bg)}">${esc(item.text)}</div>`;
+  return `<div class="item" data-id="${id}"><img src="${esc(item.src)}" alt="" draggable="false" loading="lazy">${item.cap ? `<div class="cap">${esc(item.cap)}</div>` : ''}</div>`;
+}
+
+const ICON = {
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'
+};
+
+function render() {
+  const L = cur();
+  document.documentElement.style.setProperty('--size', db.size + 'px');
+  $('#sizeRange').value = db.size;
+
+  $('#listSelect').innerHTML = Object.values(db.lists)
+    .map(l => `<option value="${l.id}"${l.id === db.current ? ' selected' : ''}>${esc(l.title || 'Untitled')}</option>`).join('');
+  if (document.activeElement !== $('#title')) $('#title').textContent = L.title;
+  document.title = `${L.title} — Tierforge`;
+
+  $('#board').innerHTML = L.tiers.map(t => `
+    <div class="tier" data-tier="${t.id}">
+      <div class="label" style="background:${t.color};color:${ink(t.color)}"><span class="label-text" contenteditable="true" spellcheck="false">${esc(t.label)}</span></div>
+      <div class="items drop" data-tier="${t.id}">${t.items.map(id => itemHTML(id, L.items[id])).join('')}</div>
+      <div class="ctrl">
+        <button class="icon" data-act="settings" title="Tier settings">${ICON.gear}</button>
+        <button class="icon" data-act="up" title="Move up">${ICON.up}</button>
+        <button class="icon" data-act="down" title="Move down">${ICON.down}</button>
+      </div>
+    </div>`).join('');
+  if (!L.tiers.length) $('#board').innerHTML = '<div style="padding:20px;color:var(--muted)">No tiers yet — add one below.</div>';
+
+  $('#pool').innerHTML = L.pool.map(id => itemHTML(id, L.items[id])).join('');
+  $('#poolCount').textContent = L.pool.length ? `${L.pool.length} item${L.pool.length > 1 ? 's' : ''}` : '';
+}
+
+function commit() { save(); render(); }
+
+// ---------- lists ----------
+$('#listSelect').onchange = e => { db.current = e.target.value; commit(); };
+$('#newList').onclick = async () => {
+  const name = await ask('Name your new tier list', 'New Tier List');
+  if (name == null) return;
+  const l = newList(name.trim() || 'Untitled');
+  db.lists[l.id] = l; db.current = l.id; commit();
+};
+$('#dupList').onclick = () => {
+  const copy = JSON.parse(JSON.stringify(cur()));
+  copy.id = uid(); copy.title = cur().title + ' (copy)';
+  db.lists[copy.id] = copy; db.current = copy.id; commit(); toast('List duplicated');
+};
+$('#delList').onclick = () => {
+  if (!confirm(`Delete "${cur().title}"? This can't be undone.`)) return;
+  delete db.lists[db.current];
+  if (!Object.keys(db.lists).length) { const l = newList(); db.lists[l.id] = l; }
+  db.current = Object.keys(db.lists)[0]; commit();
+};
+$('#title').addEventListener('input', e => { cur().title = e.target.textContent.trim() || 'Untitled'; save();
+  const o = $(`#listSelect option[value="${db.current}"]`); if (o) o.textContent = cur().title; });
+$('#title').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+$('#title').addEventListener('blur', render);
+$('#sizeRange').oninput = e => { db.size = +e.target.value; document.documentElement.style.setProperty('--size', db.size + 'px'); save(); };
+
+// ---------- tiers ----------
+const tierById = id => cur().tiers.find(t => t.id === id);
+$('#board').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const id = btn.closest('.tier').dataset.tier, T = cur().tiers, i = T.findIndex(t => t.id === id);
+  if (btn.dataset.act === 'up' && i > 0) [T[i - 1], T[i]] = [T[i], T[i - 1]];
+  else if (btn.dataset.act === 'down' && i < T.length - 1) [T[i + 1], T[i]] = [T[i], T[i + 1]];
+  else if (btn.dataset.act === 'settings') return openTier(id);
+  commit();
+});
+$('#board').addEventListener('click', e => {
+  const lab = e.target.closest('.label'); if (lab && !e.target.closest('.label-text')) lab.querySelector('.label-text').focus();
+});
+$('#board').addEventListener('keydown', e => {
+  if (e.target.classList.contains('label-text') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
+$('#board').addEventListener('focusout', e => {
+  if (!e.target.classList.contains('label-text')) return;
+  const t = tierById(e.target.closest('.tier').dataset.tier);
+  if (t) { t.label = e.target.textContent.trim() || '?'; e.target.textContent = t.label; save(); }
+});
+
+function makeTier(label = 'New') { return { id: uid(), label, color: PALETTE[Math.floor(Math.random() * 11)], items: [] }; }
+$('#addTier').onclick = () => { cur().tiers.push(makeTier(String.fromCharCode(65 + Math.min(cur().tiers.length, 25)))); commit(); };
+$('#resetItems').onclick = () => {
+  const L = cur(); L.tiers.forEach(t => { L.pool.push(...t.items); t.items = []; }); commit();
+};
+
+let editTier = null;
+function swatches(el, colors, active, onPick) {
+  el.innerHTML = colors.map(c => `<button type="button" class="sw${c.toLowerCase() === (active || '').toLowerCase() ? ' on' : ''}" style="background:${c}" data-c="${c}" title="${c}"></button>`).join('');
+  el.onclick = e => { const b = e.target.closest('.sw'); if (b) onPick(b.dataset.c); };
+}
+function paintTierDlg() {
+  const t = tierById(editTier); if (!t) return;
+  swatches($('#tSwatches'), PALETTE, t.color, c => setTierColor(c));
+  $('#tColor').value = t.color; $('#tHex').value = t.color;
+}
+function setTierColor(c) { const t = tierById(editTier); if (!t || !validHex(c)) return; t.color = c.toLowerCase(); paintTierDlg(); commit(); }
+function openTier(id) {
+  editTier = id; const t = tierById(id);
+  $('#tLabel').value = t.label; paintTierDlg(); $('#tierDlg').showModal();
+}
+$('#tLabel').oninput = e => { const t = tierById(editTier); if (t) { t.label = e.target.value || '?'; commit(); } };
+$('#tColor').oninput = e => setTierColor(e.target.value);
+$('#tHex').oninput = e => { let v = e.target.value.trim(); if (!v.startsWith('#')) v = '#' + v; if (validHex(v)) setTierColor(v); };
+const tierIndex = () => cur().tiers.findIndex(t => t.id === editTier);
+$('#tAbove').onclick = () => { cur().tiers.splice(tierIndex(), 0, makeTier()); commit(); };
+$('#tBelow').onclick = () => { cur().tiers.splice(tierIndex() + 1, 0, makeTier()); commit(); };
+$('#tClear').onclick = () => { const t = tierById(editTier); cur().pool.push(...t.items); t.items = []; commit(); };
+$('#tDelete').onclick = () => {
+  const L = cur(), i = tierIndex(); if (i < 0) return;
+  L.pool.push(...L.tiers[i].items); L.tiers.splice(i, 1); $('#tierDlg').close(); commit();
+};
+
+// ---------- items ----------
+function addItem(item, toPool = true) {
+  const L = cur(), id = uid(); L.items[id] = item; if (toPool) L.pool.push(id); return id;
+}
+function removeItem(id) {
+  const L = cur(); delete L.items[id];
+  L.pool = L.pool.filter(x => x !== id); L.tiers.forEach(t => t.items = t.items.filter(x => x !== id));
+}
+
+function loadImage(src, cors) {
+  return new Promise((res, rej) => {
+    const img = new Image(); if (cors) img.crossOrigin = 'anonymous';
+    img.onload = () => res(img); img.onerror = rej; img.src = src;
+  });
+}
+function shrink(img, max = 240) {
+  const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  let out = c.toDataURL('image/webp', 0.86);
+  if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/jpeg', 0.86);
+  return out;
+}
+async function addFiles(files) {
+  const imgs = [...files].filter(f => f.type.startsWith('image/'));
+  if (!imgs.length) return;
+  let n = 0;
+  for (const f of imgs) {
+    const url = URL.createObjectURL(f);
+    try { const img = await loadImage(url); addItem({ type: 'img', src: shrink(img) }); n++; }
+    catch { toast(`Couldn't read ${f.name}`, true); }
+    finally { URL.revokeObjectURL(url); }
+  }
+  if (n) { commit(); toast(`Added ${n} image${n > 1 ? 's' : ''}`); }
+}
+async function addUrl(url) {
+  url = url.trim(); if (!url) return;
+  try { const img = await loadImage(url, true); addItem({ type: 'img', src: shrink(img) }); commit(); toast('Image added'); }
+  catch {
+    try { await loadImage(url); addItem({ type: 'img', src: url }); commit(); toast('Image added (linked — may not appear in PNG export)'); }
+    catch { toast("Couldn't load that image URL", true); }
+  }
+}
+
+$('#uploadBtn').onclick = () => $('#imgFile').click();
+$('#imgFile').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('#urlBtn').onclick = async () => { const u = await ask('Image URL', '', 'https://…'); if (u) addUrl(u); };
+$('#textBtn').onclick = async () => {
+  const t = await ask('Text item', '', 'e.g. Pineapple pizza'); if (!t || !t.trim()) return;
+  t.split(/\s*[\n;]\s*/).filter(Boolean).forEach((s, i) => addItem({ type: 'text', text: s.slice(0, 120), bg: TEXT_BG[(cur().pool.length + i) % TEXT_BG.length] }));
+  commit();
+};
+
+document.addEventListener('paste', e => {
+  if (e.target.closest('input,textarea,[contenteditable="true"]')) return;
+  const files = [...(e.clipboardData?.files || [])];
+  if (files.length) { e.preventDefault(); return addFiles(files); }
+  const txt = e.clipboardData?.getData('text') || '';
+  if (/^https?:\/\/\S+$/i.test(txt.trim())) { e.preventDefault(); addUrl(txt); }
+});
+
+let dragDepth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+window.addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; document.body.classList.add('filedrop'); } });
+window.addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('filedrop'); } });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; document.body.classList.remove('filedrop'); addFiles(e.dataTransfer.files);
+});
+
+// item editor
+let editItem = null;
+function paintItemDlg() {
+  const it = cur().items[editItem]; if (!it) return;
+  $('#iPreview').innerHTML = itemHTML(editItem, it);
+  const isText = it.type === 'text';
+  $('#iTextWrap').hidden = !isText; $('#iBgWrap').hidden = !isText; $('#iCapWrap').hidden = isText;
+  if (isText) swatches($('#iSwatches'), TEXT_BG, it.bg, c => { it.bg = c; paintItemDlg(); commit(); });
+}
+function openItem(id) {
+  const it = cur().items[id]; if (!it) return;
+  editItem = id; $('#iText').value = it.text || ''; $('#iCap').value = it.cap || '';
+  paintItemDlg(); $('#itemDlg').showModal();
+}
+$('#iText').oninput = e => { const it = cur().items[editItem]; it.text = e.target.value || ' '; paintItemDlg(); commit(); };
+$('#iCap').oninput = e => { const it = cur().items[editItem]; it.cap = e.target.value; paintItemDlg(); commit(); };
+$('#iDelete').onclick = () => { removeItem(editItem); $('#itemDlg').close(); commit(); };
+$('#iPool').onclick = () => {
+  const L = cur(); L.tiers.forEach(t => t.items = t.items.filter(x => x !== editItem));
+  if (!L.pool.includes(editItem)) L.pool.push(editItem); $('#itemDlg').close(); commit();
+};
+$('#iDup').onclick = () => { addItem(JSON.parse(JSON.stringify(cur().items[editItem]))); $('#itemDlg').close(); commit(); toast('Duplicated to pool'); };
+
+// ---------- pointer drag & drop ----------
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest('#board .item, #pool .item');
+  if (!el || e.button !== 0) return;
+  e.preventDefault();
+  drag = { el, id: el.dataset.id, sx: e.clientX, sy: e.clientY, started: false };
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.started) {
+    if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+    const r = drag.el.getBoundingClientRect();
+    drag.ox = drag.sx - r.left; drag.oy = drag.sy - r.top;
+    drag.ghost = drag.el.cloneNode(true); drag.ghost.classList.add('ghost');
+    drag.ghost.style.width = r.width + 'px'; drag.ghost.style.height = r.height + 'px';
+    document.body.appendChild(drag.ghost);
+    drag.el.classList.add('placeholder'); document.body.classList.add('dragging');
+    drag.started = true;
+  }
+  const { clientX: x, clientY: y } = e;
+  drag.ghost.style.left = (x - drag.ox) + 'px'; drag.ghost.style.top = (y - drag.oy) + 'px';
+  const under = document.elementFromPoint(x, y);
+  const overTrash = !!under?.closest('#trash');
+  $('#trash').classList.toggle('hot', overTrash); drag.trash = overTrash;
+  let zone = under?.closest('.drop');
+  if (!zone) { const row = under?.closest('.tier'); if (row) zone = row.querySelector('.items'); }
+  if (zone) placeIn(zone, x, y);
+  autoScroll(y);
+});
+function placeIn(zone, x, y) {
+  const kids = [...zone.children].filter(c => c.classList.contains('item') && c !== drag.el);
+  let before = null;
+  for (const c of kids) {
+    const r = c.getBoundingClientRect();
+    if (y < r.top || (y <= r.bottom && x < r.left + r.width / 2)) { before = c; break; }
+  }
+  if (before) { if (drag.el.nextElementSibling !== before) zone.insertBefore(drag.el, before); }
+  else if (zone.lastElementChild !== drag.el) zone.appendChild(drag.el);
+}
+let scrollRAF;
+function autoScroll(y) {
+  cancelAnimationFrame(scrollRAF);
+  const edge = 70, h = innerHeight;
+  const dy = y < edge ? -(edge - y) / 3 : y > h - edge ? (y - (h - edge)) / 3 : 0;
+  if (dy && drag) { scrollBy(0, dy); scrollRAF = requestAnimationFrame(() => autoScroll(y)); }
+}
+function endDrag(cancel) {
+  cancelAnimationFrame(scrollRAF);
+  drag.ghost?.remove(); document.body.classList.remove('dragging'); $('#trash').classList.remove('hot');
+  if (!cancel) {
+    if (drag.trash) removeItem(drag.id);
+    else {
+      const L = cur();
+      document.querySelectorAll('#board .items').forEach(z => {
+        const t = tierById(z.dataset.tier); if (t) t.items = [...z.querySelectorAll('.item')].map(i => i.dataset.id);
+      });
+      L.pool = [...$('#pool').querySelectorAll('.item')].map(i => i.dataset.id);
+    }
+  }
+  commit();
+}
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag;
+  if (d.started) endDrag(false); else openItem(d.id);
+  drag = null;
+});
+document.addEventListener('pointercancel', () => { if (drag?.started) endDrag(true); drag = null; });
+
+// ---------- generic prompt ----------
+function ask(title, value = '', placeholder = '') {
+  return new Promise(resolve => {
+    const d = $('#askDlg'); $('#askTitle').textContent = title;
+    const inp = $('#askInput'); inp.value = value; inp.placeholder = placeholder;
+    let done = false;
+    const finish = v => { if (done) return; done = true; resolve(v); };
+    $('#askCancel').onclick = () => { d.close(); finish(null); };
+    d.onclose = () => finish(d.returnValue === 'ok' ? inp.value : null);
+    d.returnValue = ''; d.showModal(); inp.select();
+  });
+}
+
+// ---------- JSON import/export ----------
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const slug = s => (s || 'tier-list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tier-list';
+$('#exportJson').onclick = () => {
+  const data = { app: 'tierforge', version: 1, list: cur() };
+  download(new Blob([JSON.stringify(data)], { type: 'application/json' }), slug(cur().title) + '.json');
+};
+$('#importJson').onclick = () => $('#jsonFile').click();
+$('#jsonFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const raw = JSON.parse(await f.text()); const l = raw.list || raw;
+    if (!Array.isArray(l.tiers) || typeof l.items !== 'object') throw 0;
+    const list = {
+      id: uid(), title: String(l.title || 'Imported list'),
+      tiers: l.tiers.map(t => ({ id: uid(), label: String(t.label ?? '?'), color: validHex(t.color) ? t.color : '#cfcfcf', items: (t.items || []).filter(i => l.items[i]) })),
+      pool: (l.pool || []).filter(i => l.items[i]), items: l.items
+    };
+    db.lists[list.id] = list; db.current = list.id; commit(); toast('List imported');
+  } catch { toast("That file isn't a valid Tierforge list", true); }
+};
+
+// ---------- PNG export ----------
+function wrapLines(ctx, text, maxW) {
+  const words = String(text).split(/\s+/); const lines = []; let line = '';
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width <= maxW || !line) line = t; else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines.flatMap(l => { // hard-break words wider than the box
+    if (ctx.measureText(l).width <= maxW) return [l];
+    const out = []; let s = '';
+    for (const ch of l) { if (ctx.measureText(s + ch).width > maxW && s) { out.push(s); s = ch; } else s += ch; }
+    return s ? [...out, s] : out;
+  });
+}
+function centerText(ctx, text, x, y, w, h, size, color, weight = 700, family = 'Space Grotesk, Inter, sans-serif') {
+  let fs = size, lines;
+  do { ctx.font = `${weight} ${fs}px ${family}`; lines = wrapLines(ctx, text, w - 12); fs -= 1; }
+  while ((lines.length * fs * 1.2 > h - 10) && fs > 8);
+  fs += 1; const lh = fs * 1.15;
+  ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const top = y + h / 2 - (lines.length - 1) * lh / 2;
+  lines.forEach((l, i) => ctx.fillText(l, x + w / 2, top + i * lh));
+}
+$('#exportPng').onclick = async () => {
+  const L = cur(), S = Math.max(64, db.size), LW = Math.round(S * 1.3), cols = 10, PAD = 24, TITLE = 64;
+  const W = PAD * 2 + LW + cols * S;
+  const rows = L.tiers.map(t => Math.max(1, Math.ceil(t.items.length / cols)));
+  const H = PAD * 2 + TITLE + rows.reduce((a, r) => a + r * S, 0) + 28;
+  if (!L.tiers.length) return toast('Add a tier first', true);
+  await document.fonts.ready;
+  const imgs = {};
+  await Promise.all(L.tiers.flatMap(t => t.items).map(async id => {
+    const it = L.items[id]; if (it?.type !== 'img') return;
+    try { imgs[id] = await loadImage(it.src, !it.src.startsWith('data:')); } catch { imgs[id] = null; }
+  }));
+  const scale = 2, c = document.createElement('canvas'); c.width = W * scale; c.height = H * scale;
+  const ctx = c.getContext('2d'); ctx.scale(scale, scale);
+  ctx.fillStyle = '#0f1014'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e9e9ee'; ctx.font = "700 30px 'Space Grotesk', sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(L.title, PAD, PAD + TITLE / 2 - 6);
+  let y = PAD + TITLE;
+  L.tiers.forEach((t, ti) => {
+    const h = rows[ti] * S;
+    ctx.fillStyle = t.color; ctx.fillRect(PAD, y, LW, h);
+    centerText(ctx, t.label, PAD, y, LW, h, Math.min(30, S * 0.32), ink(t.color));
+    ctx.fillStyle = '#17181e'; ctx.fillRect(PAD + LW, y, cols * S, h);
+    t.items.forEach((id, i) => {
+      const it = L.items[id]; if (!it) return;
+      const x = PAD + LW + (i % cols) * S, iy = y + Math.floor(i / cols) * S;
+      if (it.type === 'text') {
+        ctx.fillStyle = it.bg; ctx.fillRect(x, iy, S, S);
+        centerText(ctx, it.text, x, iy, S, S, Math.round(S * 0.16), ink(it.bg), 600, 'Inter, sans-serif');
+      } else {
+        const img = imgs[id];
+        if (img) {
+          const iw = img.naturalWidth, ih = img.naturalHeight, k = Math.max(S / iw, S / ih);
+          const sw = S / k, sh = S / k;
+          ctx.drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, x, iy, S, S);
+        } else { ctx.fillStyle = '#2a2c35'; ctx.fillRect(x, iy, S, S); centerText(ctx, '(image)', x, iy, S, S, 12, '#8b8d99', 500, 'Inter'); }
+        if (it.cap) {
+          ctx.fillStyle = 'rgba(0,0,0,.66)'; ctx.fillRect(x, iy + S - 18, S, 18);
+          ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          let cap = it.cap; while (ctx.measureText(cap).width > S - 6 && cap.length > 1) cap = cap.slice(0, -1);
+          ctx.fillText(cap, x + S / 2, iy + S - 9);
+        }
+      }
+    });
+    ctx.fillStyle = '#0f1014'; ctx.fillRect(PAD, y + h - 1, LW + cols * S, 1);
+    y += h;
+  });
+  ctx.fillStyle = '#55576a'; ctx.font = '500 12px Inter, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText('made with Tierforge', W - PAD, H - PAD / 2 - 8);
+  try { c.toBlob(b => { download(b, slug(L.title) + '.png'); toast('PNG saved'); }, 'image/png'); }
+  catch { toast('Export blocked by a linked image from another site — re-upload it as a file.', true); }
+};
+
+// ---------- boot ----------
+load(); render(); save(true);
+addEventListener('pagehide', () => save(true));
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(true); });
+window.addEventListener('storage', e => { if (e.key === LS_KEY) { load(); render(); } });
+})();
+</script>
+</body>
+</html>
